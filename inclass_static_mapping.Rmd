@@ -590,6 +590,75 @@ Store your result as `map_local_elev` before adding the inset.
 
 **Everything must be done programmatically, referencing data using relative paths from the repo root.** You'll understand why after the activity.
 
+## GROUP 3 Work
+```{r}
+library(grid)
+
+allohio <- sf::read_sf("./static_mapping/oh_counties.gpkg") #geopackage
+sa <- allohio %>% dplyr::filter(NAME %in% c("Portage", "Summit"))
+
+#ohio map with Portage and Summit highlighted
+tm_shape(allohio) + tm_polygons() +
+  tm_shape(sa) + tm_polygons(fill = "steelblue") 
+  #tm_scalebar(position = c("left", "bottom"))
+
+
+myras <- rast("./static_mapping/neoh_dem.tif") %>%
+  terra::project(., sf::st_crs(sa)$wkt) %>% # note that terra uses "project" instead of "transform"
+  terra::crop(., sa) #only creates a rectangular bb around the area with crop
+#still needs a mask! It found the top left corner of summit county and portage county
+
+#plotting raster dem
+oh_height_map <- tm_shape(myras) +
+  tm_raster(col.scale = tm_scale_continuous(values = "YlGn"),
+            col.legend = tm_legend(position = c("left", "top"))) 
+  tm_shape(sa) + tm_polygons(fill_alpha = 0.2) 
+  #tm_scalebar(position = c("left", "bottom"))
+
+norm_dim <- function(obj) {
+  bbox   <- st_bbox(obj)
+  width  <- bbox[["xmax"]] - bbox[["xmin"]]
+  height <- bbox[["ymax"]] - bbox[["ymin"]]
+  w <- width  / max(width, height)   # ≤ 1.0: fraction of longer side
+  h <- height / max(width, height)   # ≤ 1.0: fraction of longer side
+  return(unit(c(w, h), "snpc"))      # "snpc" = square normalized parent coordinates
+}
+
+main_dim <- norm_dim(sa)        # Portage + Summit: the MAIN (detail) map
+ins_dim  <- norm_dim(allohio)   # All Ohio: the INSET (context) map
+main_dim
+ins_dim #they are wider than they are tall (w,h)
+
+map_inset
+
+#viewport moment
+main_vp <- viewport(width = main_dim[1], height = main_dim[2])
+
+ins_vp <- viewport(
+  width  = ins_dim[1] * 0.4,              # Ohio's normalized width, scaled to 40% of main map
+  height = ins_dim[2] * 0.4,              # Ohio's normalized height, scaled proportionally
+  x      = unit(1, "npc") - unit(0.5, "cm"),  # position: right edge minus 0.5cm margin
+  y      = unit(0.01, "npc"),             # position: 1% up from the bottom
+  just   = c("right", "bottom")           # which corner of the inset does x,y refer to?
+)
+
+grid.newpage()
+print(oh_height_map, vp = main_vp)   # draw main map
+pushViewport(main_vp)                 # shift coordinate origin to main map
+print(map_inset, vp = ins_vp)         # draw inset, positioned inside main map
+
+ohiobound<- sf::read_sf("./static_mapping/oh_counties.gpkg")
+ohiocount<- sf::read_sf("./static_mapping/oh_counties_DP2020.csv")
+
+ohiojoin<- left_join(ohiobound,ohiocount,by= c("GEOIDFQ" = "geoid"))
+
+ohiojoin<- ohiojoin %>% mutate(perc20to24 = (as.numeric(f20to24) + as.numeric(m20to24)) / as.numeric(poptotal))
+
+map_ohio<-tm_shape(ohiojoin) +tm_fill("perc20to24")+ tm_borders(lwd = 2, col = "black")+tm_scalebar(position = c("left", "bottom"))
+
+map_ohio
+```
+
 ---
 
 ## Before you start: what are your general steps?

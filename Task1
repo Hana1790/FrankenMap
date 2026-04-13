@@ -1,0 +1,10 @@
+ohiobound<- sf::read_sf("../data/static_mapping/oh_counties.gpkg")
+ohiocount<- sf::read_sf("../data/static_mapping/oh_counties_DP2020.csv")
+ 
+ohiojoin<- left_join(ohiobound,ohiocount,by= c("GEOIDFQ" = "geoid"))
+
+ohiojoin<- ohiojoin %>% mutate(perc20to24 = (as.numeric(f20to24) + as.numeric(m20to24)) / as.numeric(poptotal))
+
+map_ohio<-tm_shape(ohiojoin) +tm_fill("perc20to24")+ tm_borders(lwd = 2, col = "black")+tm_scalebar(position = c("left", "bottom"))
+ 
+map_ohio 
